@@ -1,0 +1,47 @@
+import os
+from dotenv import load_dotenv
+
+from googleapiclient.discovery import build
+
+from utils.comments import process_comments, make_csv
+
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
+
+youtube = build("youtube", "v3", developerKey = API_KEY)
+
+def comment_threads(channelID, to_csv=False):
+
+    comments_list = []
+
+    request = youtube.commentThreads().list(
+        part='id,replies,snippet',
+        videoId=channelID,
+    )
+    response = request.execute()
+    #extend instead of append as it causes a nested list and makes it hard to find the 0th element
+    comments_list.extend(process_comments(response['items']))
+    
+    i=30
+    while response.get('nextPageToken', None) and i>0:
+        request = youtube.commentThreads().list(
+            part='id,replies,snippet',
+            videoId=channelID,
+            pageToken=response['nextPageToken'],
+        )
+        i= i-1
+        response = request.execute()
+        comments_list.extend(process_comments(response['items']))
+
+    print(f'Finished fetching comments for {channelID}. {len(comments_list)} comments found.')
+
+    if to_csv:
+        make_csv(comments_list, channelID)
+
+    return comments_list
+
+def main():
+    comment_threads("kxOuG8jMIgI", to_csv=True)
+
+if __name__ == "__main__":
+    main()
